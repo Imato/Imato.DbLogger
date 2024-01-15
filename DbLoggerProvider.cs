@@ -1,12 +1,13 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Collections.Generic;
 
 namespace Imato.DbLogger
 {
     [ProviderAlias("DbLogger")]
     public class DbLoggerProvider : ILoggerProvider
     {
-        private static DbLogger logger = null!;
+        private static List<DbLogger> loggers = new List<DbLogger>();
 
         public DbLoggerOptions? Options { get; }
 
@@ -17,16 +18,17 @@ namespace Imato.DbLogger
 
         public ILogger CreateLogger(string categoryName)
         {
-            if (logger == null)
-            {
-                logger = new DbLogger(Options, categoryName);
-            }
+            var logger = new DbLogger(Options, categoryName);
+            loggers.Add(logger);
             return logger;
         }
 
         public void Dispose()
         {
-            logger.Dispose();
+            foreach (var logger in loggers)
+            {
+                logger.Dispose();
+            }
         }
     }
 }

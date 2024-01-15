@@ -13,19 +13,18 @@ namespace Imato.DbLogger
 {
     public class DbLogger : ILogger, IDisposable
     {
-        private readonly IDbConnection connection;
         private readonly string category;
         private readonly string? sqlTable;
         private readonly string[]? sqlColumns;
         private readonly int batchSize;
         private readonly int saveDelay = 15_000;
         private readonly bool active;
-        private DateTime lastSave = DateTime.Now;
 
+        private static DateTime lastSave = DateTime.Now;
         private static readonly ConcurrentQueue<DbLogEvent> queue = new ConcurrentQueue<DbLogEvent>();
+        private static IDbConnection connection = null!;
 
-        public DbLogger(IOptions<DbLoggerOptions?> options,
-                string category = "")
+        public DbLogger(IOptions<DbLoggerOptions?> options, string category = "")
             : this(options?.Value, category)
         {
         }
@@ -40,10 +39,13 @@ namespace Imato.DbLogger
                 && !string.IsNullOrEmpty(options?.Table)
                 && !string.IsNullOrEmpty(options?.Columns))
             {
-                connection = DbContext.GetConnection(connectionString: AppEnvironment.GetVariables(options.ConnectionString),
+                if (connection == null)
+                {
+                    connection = DbContext.GetConnection(connectionString: options.ConnectionString,
                     dataBase: "",
                     user: "",
                     password: "");
+                }
                 sqlTable = options.Table;
                 sqlColumns = options.Columns.Split(",");
                 batchSize = options.BatchSizeRows;
@@ -149,6 +151,7 @@ namespace Imato.DbLogger
 
         public void Dispose()
         {
+            SaveAsync().Wait();
             connection.Dispose();
         }
     }

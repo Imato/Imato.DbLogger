@@ -16,6 +16,8 @@ namespace Imato.DbLogger
             Action<DbLoggerOptions> configure)
         {
             builder.Services.AddSingleton<ILoggerProvider, DbLoggerProvider>();
+            builder.Services.AddSingleton<ILogger, DbLogger>();
+            builder.Services.AddSingleton<DbLogger>();
             builder.Services.Configure(configure);
             SqlMapper.AddTypeMap(typeof(LogLevel), DbType.String);
             return builder;
