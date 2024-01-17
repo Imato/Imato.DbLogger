@@ -7,9 +7,9 @@
 
 
 	<ItemGroup>
-		<PackageReference Include="Imato.Dapper.DbContext" Version="1.7.6" />
-		<PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />	
+		<PackageReference Include="Imato.Dapper.DbContext" Version="1.7.7" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />	
 		<PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />		
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
 	</ItemGroup>
@@ -37,7 +37,7 @@
 		<PackageTags>logging db</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<PackageReleaseNotes>Ready to use</PackageReleaseNotes>
-		<Version>1.0.2</Version>
+		<Version>1.0.3</Version>
 		<AssemblyName>Imato.DbLogger</AssemblyName>
 		<PackageIcon>icon.png</PackageIcon>
 		<PublishRepositoryUrl>true</PublishRepositoryUrl>

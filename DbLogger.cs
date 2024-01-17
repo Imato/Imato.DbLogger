@@ -114,7 +114,14 @@ namespace Imato.DbLogger
                 if (queue.Count > batchSize
                     || ((DateTime.Now - lastSave).TotalMilliseconds > saveDelay && queue.Count > 0))
                 {
-                    await SaveAsync();
+                    try
+                    {
+                        await SaveAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine(ex.ToString());
+                    }
                 }
             }
         }
@@ -128,31 +135,28 @@ namespace Imato.DbLogger
                 return;
             }
 
-            try
+            var count = queue.Count;
+            var logs = new List<DbLogEvent>(count);
+            while (queue.TryDequeue(out var log) && logs.Count <= count)
             {
-                var count = queue.Count;
-                var logs = new List<DbLogEvent>(count);
-                while (queue.TryDequeue(out var log) && logs.Count <= count)
-                {
-                    logs.Add(log);
-                }
+                logs.Add(log);
+            }
 
-                await connection.BulkInsertAsync(data: logs,
-                    tableName: sqlTable,
-                    columns: sqlColumns,
-                    batchSize: count,
-                    skipFieldsCheck: true);
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine(ex.ToString());
-            }
+            await connection.BulkInsertAsync(data: logs,
+                tableName: sqlTable,
+                columns: sqlColumns,
+                batchSize: count,
+                skipFieldsCheck: true);
         }
 
         public void Dispose()
         {
-            SaveAsync().Wait();
-            connection.Dispose();
+            try
+            {
+                SaveAsync().Wait();
+                connection.Dispose();
+            }
+            catch { }
         }
     }
 }
