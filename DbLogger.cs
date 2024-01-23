@@ -8,21 +8,24 @@ using System.Data;
 using Imato.Dapper.DbContext;
 using System.Collections.Generic;
 using Dapper;
+using System.Threading;
+using System.Linq;
 
 namespace Imato.DbLogger
 {
     public class DbLogger : ILogger, IDisposable
     {
         private readonly string category;
-        private readonly string? sqlTable;
-        private readonly string[]? sqlColumns;
-        private readonly int batchSize;
         private readonly int saveDelay = 15_000;
-        private readonly bool active;
 
+        private static int batchSize;
+        private static string? sqlTable;
+        private static string[]? sqlColumns;
         private static DateTime lastSave = DateTime.Now;
         private static readonly ConcurrentQueue<DbLogEvent> queue = new ConcurrentQueue<DbLogEvent>();
         private static IDbConnection connection = null!;
+        private static SemaphoreSlim semaphore = new SemaphoreSlim(1);
+        private static bool active;
 
         public DbLogger(IOptions<DbLoggerOptions?> options, string category = "")
             : this(options?.Value, category)
@@ -34,22 +37,45 @@ namespace Imato.DbLogger
             var assembly = Assembly.GetEntryAssembly().GetName().Name;
             category = category.Replace($"{assembly}.", "");
             this.category = $"{assembly}: {category}";
-            if (options != null
+            Initilize(options);
+        }
+
+        private void Initilize(DbLoggerOptions? options)
+        {
+            semaphore.Wait();
+            if (!active)
+            {
+                if (options != null
                 && !string.IsNullOrEmpty(options?.ConnectionString)
                 && !string.IsNullOrEmpty(options?.Table)
                 && !string.IsNullOrEmpty(options?.Columns))
-            {
-                if (connection == null)
                 {
-                    connection = DbContext.GetConnection(connectionString: options.ConnectionString,
-                    dataBase: "",
-                    user: "",
-                    password: "");
+                    var context = new DbContext(options.ConnectionString);
+                    connection = context.Connection();
+                    sqlTable = options.Table;
+                    sqlColumns = options.Columns.Split(",");
+                    batchSize = options.BatchSizeRows;
+                    CheckColumns(context, sqlTable, sqlColumns);
+                    active = true;
                 }
-                sqlTable = options.Table;
-                sqlColumns = options.Columns.Split(",");
-                batchSize = options.BatchSizeRows;
-                active = true;
+            }
+            semaphore.Release();
+        }
+
+        private void CheckColumns(DbContext context, string table, string[] columns)
+        {
+            var tc = context.GetColumnsAsync(table).Result;
+            var notExits = "";
+            foreach (var column in columns)
+            {
+                if (!tc.Contains(column))
+                {
+                    notExits += column + ";";
+                }
+            }
+            if (notExits.Length > 0)
+            {
+                throw new ArgumentException($"Columns {notExits} not exist in DB table {table}");
             }
         }
 
@@ -80,7 +106,8 @@ namespace Imato.DbLogger
                     Source = category
                 };
 
-                log.Message = exception?.ToString() ?? formatter(state, exception) ?? state?.ToString() ?? "Empty";
+                log.Exception = exception != null ? (formatter(state, exception) ?? exception.ToString()) : null;
+                log.Message = formatter(state, exception) ?? state?.ToString();
 
                 switch (logLevel)
                 {
