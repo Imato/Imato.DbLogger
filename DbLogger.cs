@@ -106,7 +106,7 @@ namespace Imato.DbLogger
                     Source = category
                 };
 
-                log.Exception = exception != null ? (formatter(state, exception) ?? exception.ToString()) : null;
+                log.Exception = exception?.ToString();
                 log.Message = formatter(state, exception) ?? state?.ToString();
 
                 switch (logLevel)
