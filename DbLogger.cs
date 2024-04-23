@@ -26,6 +26,7 @@ namespace Imato.DbLogger
         private static IDbConnection connection = null!;
         private static SemaphoreSlim semaphore = new SemaphoreSlim(1);
         private static bool active;
+        private static LogLevel logLevel = LogLevel.Error;
 
         public DbLogger(IOptions<DbLoggerOptions?> options, string category = "")
             : this(options?.Value, category)
@@ -56,6 +57,11 @@ namespace Imato.DbLogger
                     sqlColumns = options.Columns.Split(",");
                     batchSize = options.BatchSizeRows;
                     CheckColumns(context, sqlTable, sqlColumns);
+                    if (Enum.TryParse(typeof(LogLevel), options.LogLevel, out var ll))
+                    {
+                        logLevel = (LogLevel)ll;
+                    }
+
                     active = true;
                 }
             }
@@ -92,9 +98,9 @@ namespace Imato.DbLogger
             return null;
         }
 
-        public bool IsEnabled(LogLevel logLevel)
+        public bool IsEnabled(LogLevel level)
         {
-            return logLevel != LogLevel.None;
+            return level >= logLevel;
         }
 
         public async void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
