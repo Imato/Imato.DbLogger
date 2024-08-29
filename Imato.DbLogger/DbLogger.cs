@@ -51,7 +51,7 @@ namespace Imato.DbLogger
                 && !string.IsNullOrEmpty(options?.Table)
                 && !string.IsNullOrEmpty(options?.Columns))
                 {
-                    var context = new DbContext(options.ConnectionString);
+                    var context = new DbContext(connectionString: options.ConnectionString);
                     connection = context.Connection();
                     sqlTable = options.Table;
                     sqlColumns = options.Columns.Split(",");
