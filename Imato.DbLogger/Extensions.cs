@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using System;
 using System.Data;
-using Imato.Dapper.DbContext;
 
 namespace Imato.DbLogger
 {

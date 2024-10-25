@@ -20,6 +20,7 @@ namespace Imato.DbLogger.Test
             builder.ConfigureServices(services =>
             {
                 services.AddSingleton<IConfiguration>(config);
+                services.AddLogging();
             });
             builder.ConfigureLogging((_, logging) =>
             {

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.IO;
 using System.Reflection;
 using System.Text.Json;
 
@@ -23,7 +22,6 @@ namespace Imato.DbLogger
                 {
                     _appName =
                         AppDomain.CurrentDomain.BaseDirectory
-                        + Path.DirectorySeparatorChar
                         + Assembly.GetEntryAssembly().GetName().Name
                         + ":"
                         + Assembly.GetEntryAssembly().GetName().Version.ToString();

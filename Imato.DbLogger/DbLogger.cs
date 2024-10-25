@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using Dapper;
 using System.Threading;
 using System.Linq;
+using Imato.Reflection;
 
 namespace Imato.DbLogger
 {
@@ -20,7 +21,7 @@ namespace Imato.DbLogger
 
         private static int batchSize;
         private static string? sqlTable;
-        private static string[]? sqlColumns;
+        private static Dictionary<string, string> mappings = new Dictionary<string, string>();
         private static DateTime lastSave = DateTime.Now;
         private static readonly ConcurrentQueue<DbLogEvent> queue = new ConcurrentQueue<DbLogEvent>();
         private static IDbConnection connection = null!;
@@ -54,9 +55,17 @@ namespace Imato.DbLogger
                     var context = new DbContext(connectionString: options.ConnectionString);
                     connection = context.Connection();
                     sqlTable = options.Table;
-                    sqlColumns = options.Columns.Split(",");
+                    var cl = options.Columns.Split(",");
+                    var fields = Objects.GetFieldNames<DbLogEvent>().ToArray();
+                    for (int i = 0; i < fields.Length; i++)
+                    {
+                        if (i < cl.Length)
+                        {
+                            mappings.Add(fields[i], cl[i]);
+                        }
+                    }
                     batchSize = options.BatchSizeRows;
-                    CheckColumns(context, sqlTable, sqlColumns);
+                    CheckColumns(context, sqlTable, mappings.Values);
                     if (Enum.TryParse(typeof(LogLevel), options.LogLevel, out var ll))
                     {
                         logLevel = (LogLevel)ll;
@@ -65,12 +74,17 @@ namespace Imato.DbLogger
                     active = true;
                 }
             }
+
             semaphore.Release();
         }
 
-        private void CheckColumns(DbContext context, string table, string[] columns)
+        private void CheckColumns(DbContext context, string table, IEnumerable<string> columns)
         {
-            var tc = context.GetColumnsAsync(table).Result;
+            var t = context.GetColumnsAsync(table).Result;
+            var tc = t
+                .Where(x => !x.IsComputed && !x.IsIdentity)
+                .Select(x => x.Name)
+                .ToArray();
             var notExits = "";
             foreach (var column in columns)
             {
@@ -177,9 +191,21 @@ namespace Imato.DbLogger
 
             await connection.BulkInsertAsync(data: logs,
                 tableName: sqlTable,
-                columns: sqlColumns,
-                batchSize: count,
-                skipFieldsCheck: true);
+                mappings: mappings,
+                batchSize: count);
+        }
+
+        public async Task<IEnumerable<DbLogEvent>> GetLastEventsAsync(DateTime? lastDate = null)
+        {
+            lastDate ??= DateTime.Now.AddMinutes(-5);
+            return await connection.QueryAsync<DbLogEvent>(
+                $"select * from {sqlTable} where {mappings["Date"]} > @lastDate",
+                new { lastDate });
+        }
+
+        public async Task ClearAsync()
+        {
+            await connection.ExecuteAsync($"truncate table {sqlTable}");
         }
 
         public void Dispose()
