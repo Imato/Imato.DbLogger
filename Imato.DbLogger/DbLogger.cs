@@ -11,6 +11,8 @@ using Dapper;
 using System.Threading;
 using System.Linq;
 using Imato.Reflection;
+using Microsoft.Extensions.Configuration;
+using System.Configuration;
 
 namespace Imato.DbLogger
 {
@@ -29,20 +31,20 @@ namespace Imato.DbLogger
         private static bool active;
         private static LogLevel logLevel = LogLevel.Error;
 
-        public DbLogger(IOptions<DbLoggerOptions?> options, string category = "")
-            : this(options?.Value, category)
+        public DbLogger(IConfiguration configuration, IOptions<DbLoggerOptions> options, string category = "")
+            : this(configuration, options?.Value, category)
         {
         }
 
-        public DbLogger(DbLoggerOptions? options, string category = "")
+        public DbLogger(IConfiguration configuration, DbLoggerOptions options, string category = "")
         {
             var assembly = Assembly.GetEntryAssembly().GetName().Name;
             category = category.Replace($"{assembly}.", "");
             this.category = $"{assembly}: {category}";
-            Initilize(options);
+            Initilize(options, configuration);
         }
 
-        private void Initilize(DbLoggerOptions? options)
+        private void Initilize(DbLoggerOptions options, IConfiguration configuration)
         {
             semaphore.Wait();
             if (!active)
@@ -52,7 +54,7 @@ namespace Imato.DbLogger
                 && !string.IsNullOrEmpty(options?.Table)
                 && !string.IsNullOrEmpty(options?.Columns))
                 {
-                    var context = new DbContext(connectionString: options.ConnectionString);
+                    var context = new DbContext(configuration, null, options.ConnectionString);
                     connection = context.Connection();
                     sqlTable = options.Table;
                     var cl = options.Columns.Split(",");
@@ -132,23 +134,27 @@ namespace Imato.DbLogger
                 switch (logLevel)
                 {
                     case LogLevel.Trace:
-
-                    case LogLevel.Debug:
                         log.Level = 0;
                         break;
 
-                    case LogLevel.Information:
+                    case LogLevel.Debug:
                         log.Level = 1;
                         break;
 
-                    case LogLevel.Warning:
+                    case LogLevel.Information:
                         log.Level = 2;
                         break;
 
+                    case LogLevel.Warning:
+                        log.Level = 3;
+                        break;
+
                     case LogLevel.Error:
+                        log.Level = 4;
+                        break;
 
                     case LogLevel.Critical:
-                        log.Level = 3;
+                        log.Level = 5;
                         break;
 
                     case LogLevel.None:

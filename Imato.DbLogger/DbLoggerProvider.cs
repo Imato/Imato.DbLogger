@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Collections.Generic;
 
@@ -9,16 +10,18 @@ namespace Imato.DbLogger
     {
         private static List<DbLogger> loggers = new List<DbLogger>();
 
-        public DbLoggerOptions? Options { get; }
+        public DbLoggerOptions Options { get; }
+        private readonly IConfiguration configuration;
 
-        public DbLoggerProvider(IOptions<DbLoggerOptions?> options)
+        public DbLoggerProvider(IOptions<DbLoggerOptions> options, IConfiguration configuration)
         {
-            Options = options?.Value;
+            Options = options.Value;
+            this.configuration = configuration;
         }
 
         public ILogger CreateLogger(string categoryName)
         {
-            var logger = new DbLogger(Options, categoryName);
+            var logger = new DbLogger(configuration, Options, categoryName);
             loggers.Add(logger);
             return logger;
         }
