@@ -1,18 +1,17 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System;
 using System.Collections.Concurrent;
-using Microsoft.Extensions.Options;
-using System;
-using System.Threading.Tasks;
-using System.Reflection;
-using System.Data;
-using Imato.Dapper.DbContext;
 using System.Collections.Generic;
-using Dapper;
-using System.Threading;
+using System.Data;
 using System.Linq;
+using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
+using Dapper;
+using Imato.Dapper.DbContext;
 using Imato.Reflection;
 using Microsoft.Extensions.Configuration;
-using System.Configuration;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Imato.DbLogger
 {
@@ -47,36 +46,36 @@ namespace Imato.DbLogger
         private void Initilize(DbLoggerOptions options, IConfiguration configuration)
         {
             semaphore.Wait();
-            if (!active)
+            if (sqlTable == null
+                    && !active
+                    && options != null
+                    && !string.IsNullOrEmpty(options?.ConnectionString)
+                    && !string.IsNullOrEmpty(options?.Table)
+                    && !string.IsNullOrEmpty(options?.Columns))
             {
-                if (options != null
-                && !string.IsNullOrEmpty(options?.ConnectionString)
-                && !string.IsNullOrEmpty(options?.Table)
-                && !string.IsNullOrEmpty(options?.Columns))
+                var context = new DbContext(configuration, null, options.ConnectionString);
+                connection = context.Connection();
+                sqlTable = options.Table;
+                var cl = options.Columns.Split(",");
+                var fields = Objects.GetFieldNames<DbLogEvent>().ToArray();
+                for (int i = 0; i < fields.Length; i++)
                 {
-                    var context = new DbContext(configuration, null, options.ConnectionString);
-                    connection = context.Connection();
-                    sqlTable = options.Table;
-                    var cl = options.Columns.Split(",");
-                    var fields = Objects.GetFieldNames<DbLogEvent>().ToArray();
-                    for (int i = 0; i < fields.Length; i++)
+                    if (i < cl.Length)
                     {
-                        if (i < cl.Length)
-                        {
-                            mappings.Add(fields[i], cl[i]);
-                        }
+                        mappings.Add(fields[i], cl[i]);
                     }
-                    batchSize = options.BatchSizeRows;
-                    CheckColumns(context, sqlTable, mappings.Values);
-                    if (Enum.TryParse(typeof(LogLevel), options.LogLevel, out var ll))
-                    {
-                        logLevel = (LogLevel)ll;
-                    }
-
-                    active = true;
                 }
+                batchSize = options.BatchSizeRows;
+                CheckColumns(context, sqlTable, mappings.Values);
+                if (Enum.TryParse(typeof(LogLevel), options.LogLevel, out var ll))
+                {
+                    logLevel = (LogLevel)ll;
+                }
+
+                active = true;
             }
 
+            sqlTable ??= "";
             semaphore.Release();
         }
 
