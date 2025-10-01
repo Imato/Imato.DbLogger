@@ -9,7 +9,7 @@ namespace Imato.DbLogger
         public string? Source { get; set; }
         public string? Message { get; set; }
         public string? Exception { get; set; }
-        public string Server => Environment.MachineName;
-        public string App => Constants.AppName;
+        public string Server { get; set; } = Environment.MachineName;
+        public string App { get; set; } = Constants.AppName;
     }
 }

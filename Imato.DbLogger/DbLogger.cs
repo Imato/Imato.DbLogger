@@ -25,7 +25,7 @@ namespace Imato.DbLogger
         private static Dictionary<string, string> mappings = new Dictionary<string, string>();
         private static DateTime lastSave = DateTime.Now;
         private static readonly ConcurrentQueue<DbLogEvent> queue = new ConcurrentQueue<DbLogEvent>();
-        private static IDbConnection connection = null!;
+        private static DbContext context = null!;
         private static SemaphoreSlim semaphore = new SemaphoreSlim(1);
         private static bool active;
         private static LogLevel logLevel = LogLevel.Error;
@@ -53,8 +53,7 @@ namespace Imato.DbLogger
                     && !string.IsNullOrEmpty(options?.Table)
                     && !string.IsNullOrEmpty(options?.Columns))
             {
-                var context = new DbContext(configuration, null, options.ConnectionString);
-                connection = context.Connection();
+                context = new DbContext(configuration, null, options.ConnectionString);
                 sqlTable = options.Table;
                 var cl = options.Columns.Split(",");
                 var fields = Objects.GetFieldNames<DbLogEvent>().ToArray();
@@ -104,7 +103,7 @@ namespace Imato.DbLogger
         {
             if (active)
             {
-                await connection.ExecuteAsync($"delete from {sqlTable}");
+                await context.Connection().ExecuteAsync($"delete from {sqlTable}");
             }
         }
 
@@ -129,37 +128,7 @@ namespace Imato.DbLogger
 
                 log.Exception = exception?.ToString();
                 log.Message = formatter(state, exception) ?? state?.ToString();
-
-                switch (logLevel)
-                {
-                    case LogLevel.Trace:
-                        log.Level = 0;
-                        break;
-
-                    case LogLevel.Debug:
-                        log.Level = 1;
-                        break;
-
-                    case LogLevel.Information:
-                        log.Level = 2;
-                        break;
-
-                    case LogLevel.Warning:
-                        log.Level = 3;
-                        break;
-
-                    case LogLevel.Error:
-                        log.Level = 4;
-                        break;
-
-                    case LogLevel.Critical:
-                        log.Level = 5;
-                        break;
-
-                    case LogLevel.None:
-                        log.Level = 0;
-                        break;
-                }
+                log.Level = (byte)logLevel;
 
                 queue.Enqueue(log);
 
@@ -194,23 +163,30 @@ namespace Imato.DbLogger
                 logs.Add(log);
             }
 
-            await connection.BulkInsertAsync(data: logs,
+            await context.Connection().BulkInsertAsync(data: logs,
                 tableName: sqlTable,
                 mappings: mappings,
                 batchSize: count);
         }
 
-        public async Task<IEnumerable<DbLogEvent>> GetLastEventsAsync(DateTime? lastDate = null)
+        public async Task<IEnumerable<DbLogEvent>> GetLastEventsAsync(DateTime? maxDate = null,
+            byte level = 0,
+            string[]? apps = null,
+            int count = 100)
         {
-            lastDate ??= DateTime.Now.AddMinutes(-5);
-            return await connection.QueryAsync<DbLogEvent>(
-                $"select * from {sqlTable} where {mappings["Date"]} > @lastDate",
-                new { lastDate });
+            var sql = $"select {(context.Vendor() == ContextVendors.mssql ? ("top " + count) : "")} app,dt as date,exception,level,message,host as server,source " +
+                $"from {sqlTable} " +
+                $"where {mappings["Date"]} < @maxDate " +
+                $"and level >= @level " +
+                (apps?.Length > 0 ? ("and (app like '%" + string.Join("%' or app like '%", apps) + "%') ") : "") +
+                $"order by {mappings["Date"]} " +
+                $"desc {(context.Vendor() == ContextVendors.mssql ? "" : ("limit " + count))}";
+            return await context.Connection().QueryAsync<DbLogEvent>(sql, new { maxDate = maxDate ?? DateTime.Now, level });
         }
 
         public async Task ClearAsync()
         {
-            await connection.ExecuteAsync($"truncate table {sqlTable}");
+            await context.Connection().ExecuteAsync($"truncate table {sqlTable}");
         }
 
         public void Dispose()
@@ -218,7 +194,7 @@ namespace Imato.DbLogger
             try
             {
                 SaveAsync().Wait();
-                connection.Dispose();
+                context.Connection().Dispose();
             }
             catch { }
         }
